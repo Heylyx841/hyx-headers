@@ -1,10 +1,10 @@
 # hyx-headers
 
-一个基于 C++23 的 header-only 工具库集合。
+一个基于 C++ 的 header-only 工具库集合。
 
 ## 组件列表
 
-### 1. `hyx::autoseq<T>`
+### 1. `hyx::autoseq<T> (C++23)`
 一个动态数学数列容器。
 
 - **延迟计算**: 仅在访问时按需生成数列项。
