@@ -1,23 +1,26 @@
+#pragma once
+
+#if __cplusplus < 202002L
+#error "hyx_autoseq.hpp requires C++20 or later."
+#endif
+
 /**
  * @file hyx_autoseq.hpp
- * @brief C++23 动态数学数列容器 (0-based)
+ * @brief C++20 动态数学数列容器
  * @note 只允许单线程调用，迭代器仅代表已缓存范围
  *
- * @version 1.0.0-beta.1
+ * @version 1.0.0-beta.2
  * @author Heylyx841
- * @date 2026-02-01
+ * @date 2026-02-04
  * @license MIT License
  *
  * Copyright (c) 2026 Heylyx841
  */
 
-#ifndef HYX_AUTOSEQ_HPP
-#define HYX_AUTOSEQ_HPP 1
-
 #include <utility>      // std::forward, std::move
 #include <vector>       // std::vector
 #include <span>         // std::span
-#include <functional>   // std::move_only_function
+#include <functional>   // std::function
 #include <concepts>     // std::convertible_to
 #include <type_traits>  // std::is_invocable_r_v, etc.
 #include <bit>          // std::bit_ceil
@@ -31,11 +34,12 @@ namespace hyx
 {
 
 /**
- * @namespace autoseq_detail
+ * @namespace autoseq_details
  * @brief 内部实现细节
  */
-namespace autoseq_detail
+namespace autoseq_details
 {
+
 /**
  * @class MathContext
  * @brief 数学公式执行上下文
@@ -60,7 +64,6 @@ struct MathContext
 	/** @brief 获取前一项 */
 	[[nodiscard]] constexpr const T& last() const noexcept
 	{
-//		if(history.empty()) [[unlikely]] throw std::out_of_range("hyx::autoseq: Cannot access last() on empty autoseq.");
 		assert(!history.empty() && "hyx::autoseq: Cannot access last() on empty autoseq.");
 		return history.back();
 	}
@@ -76,6 +79,9 @@ struct MathContext
 	}
 };
 
+/**
+ * @brief 用于 static_assert 的辅助模板
+ */
 template <typename...> constexpr bool always_false = false;
 
 /**
@@ -109,10 +115,11 @@ constexpr auto make_dispatch(F&& f)
 	else
 	{
 		static_assert(always_false<F>, "hyx::autoseq: Unrecognized formula signature.");
-		return nullptr;
+		return nullptr; // 实际上不可达，用于平息编译器警告
 	}
 }
-} // namespace autoseq_detail
+
+} // namespace autoseq_details
 
 /**
  * @class autoseq
@@ -132,8 +139,12 @@ class autoseq
 private:
 	/** @brief 项数据缓存 */
 	mutable std::vector<T> cache_;
-	/** @brief 生成公式封装 */
-	mutable std::move_only_function<T(size_t, std::span<const T>) const> formula_;
+
+	/**
+	 * @brief 生成公式封装
+	 * @note 要求 Gen 必须是可复制的 (CopyConstructible)。
+	 */
+	mutable std::function<T(size_t, std::span<const T>)> formula_;
 
 	/**
 	 * @brief 确保计算达到指定的数学索引
@@ -175,7 +186,8 @@ public:
 	 */
 	template <typename Gen, typename... InitArgs>
 	requires(std::convertible_to<InitArgs, T> && ...)
-	explicit autoseq(Gen&& g, InitArgs&&... init_values) : formula_(autoseq_detail::make_dispatch<T>(std::forward<Gen>(g)))
+	explicit autoseq(Gen&& g, InitArgs&&... init_values)
+		: formula_(autoseq_details::make_dispatch<T>(std::forward<Gen>(g)))
 	{
 		if constexpr(sizeof...(init_values) > 0)
 		{
@@ -200,6 +212,7 @@ public:
 		ensure_calculated(n);
 		return cache_[n];
 	}
+
 	[[nodiscard]] const T& at(size_t n) const
 	{
 		ensure_calculated(n);
@@ -227,9 +240,8 @@ public:
 	 * @param start 起始索引
 	 * @param end 截止索引
 	 */
-	[[nodiscard]] std::span<const T> operator[](size_t start, size_t end) const
+	[[nodiscard]] std::span<const T> slice(size_t start, size_t end) const
 	{
-//		if(start > end) [[unlikely]] throw std::out_of_range("hyx::autoseq: Invalid range.");
 		assert(start <= end && "hyx::autoseq: Invalid range.");
 		if(start == end) return {};
 		ensure_calculated(end - 1);
@@ -252,6 +264,7 @@ public:
 	{
 		return cache_;
 	}
+
 	[[nodiscard]] std::vector<T> snapshot() &&
 	{
 		return std::move(cache_);
@@ -271,6 +284,7 @@ public:
 	{
 		return cache_.begin();
 	}
+
 	/** @brief 获取当前已缓存部分的结束迭代器 */
 	[[nodiscard]] const_iterator end() const noexcept
 	{
@@ -279,5 +293,3 @@ public:
 };
 
 } // namespace hyx
-
-#endif // HYX_AUTOSEQ_HPP
